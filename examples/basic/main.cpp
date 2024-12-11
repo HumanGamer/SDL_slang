@@ -41,4 +41,11 @@ int main(int argc, const char** argv)
     }
 
     SDL_Slang_Quit();
+
+    SDL_ReleaseWindowFromGPUDevice(device, window);
+    SDL_DestroyWindow(window);
+    SDL_DestroyGPUDevice(device);
+    SDL_Quit();
+
+    return 0;
 }
