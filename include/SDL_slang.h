@@ -35,7 +35,7 @@ extern "C"
     SDL_SLANG_DECLSPEC void SDL_SLANG_CALL SDL_Slang_Quit();
 
     SDL_SLANG_DECLSPEC SDL_GPUShader* SDL_SLANG_CALL SDL_Slang_CompileGraphicsShader(SDL_GPUDevice* device, SDL_GPUShaderStage shaderStage, const char* shader, const char* entryPoint, const char** searchPaths, int numSearchPaths, SDL_Slang_Define* defines, int numDefines);
-    SDL_SLANG_DECLSPEC SDL_GPUComputePipeline* SDL_SLANG_CALL SDL_Slang_CompileComputeShader(SDL_GPUDevice* device, const char* shader, const char* entryPoint, const char** searchPaths, int numSearchPaths, SDL_Slang_Define* defines, int numDefines);
+    //SDL_SLANG_DECLSPEC SDL_GPUComputePipeline* SDL_SLANG_CALL SDL_Slang_CompileComputeShader(SDL_GPUDevice* device, const char* shader, const char* entryPoint, const char** searchPaths, int numSearchPaths, SDL_Slang_Define* defines, int numDefines);
 
 #ifdef __cplusplus
 }

@@ -170,7 +170,7 @@ void* SDL_CreateGPUShader_Slang_Internal(SDL_GPUDevice* device, SDL_GPUShaderSta
         return nullptr;
     }
 
-    if (compute)
+    /*if (compute)
     {
         SDL_GPUComputePipelineCreateInfo createInfo;
         createInfo.code = code;
@@ -249,7 +249,7 @@ void* SDL_CreateGPUShader_Slang_Internal(SDL_GPUDevice* device, SDL_GPUShaderSta
         createInfo.threadcount_z = 0;
 
         return SDL_CreateGPUComputePipeline(device, &createInfo);
-    }
+    }*/
 
     SDL_GPUShaderCreateInfo createInfo;
     createInfo.code = code;
@@ -274,7 +274,8 @@ void* SDL_CreateGPUShader_Slang_Internal(SDL_GPUDevice* device, SDL_GPUShaderSta
     {
         slang::VariableLayoutReflection* parameter = programLayout->getParameterByIndex(i);
 
-        auto tl = parameter->getTypeLayout();
+
+        auto tl = parameter->getType();
         slang::TypeReflection::Kind kind = tl->getKind();
         if (kind == slang::TypeReflection::Kind::SamplerState)
         {
@@ -288,14 +289,14 @@ void* SDL_CreateGPUShader_Slang_Internal(SDL_GPUDevice* device, SDL_GPUShaderSta
             continue;
         }
 
-        if (kind == slang::TypeReflection::Kind::TextureBuffer)
+        if (kind == slang::TypeReflection::Kind::Resource)
         {
             storageTextureCount++;
             continue;
         }
 
 
-        if (tl->getParameterCategory() == slang::ParameterCategory::Uniform)
+        if (kind == slang::TypeReflection::Kind::ConstantBuffer)
         {
             uniformBufferCount++;
             continue;
@@ -315,7 +316,7 @@ SDL_SLANG_DECLSPEC SDL_GPUShader* SDL_SLANG_CALL SDL_Slang_CompileGraphicsShader
     return static_cast<SDL_GPUShader *>(SDL_CreateGPUShader_Slang_Internal(device, shaderStage, false, shader, entryPoint, searchPaths, numSearchPaths, defines, numDefines));
 }
 
-SDL_SLANG_DECLSPEC SDL_GPUComputePipeline* SDL_SLANG_CALL SDL_Slang_CompileComputeShader(SDL_GPUDevice* device, const char* shader, const char* entryPoint, const char** searchPaths, int numSearchPaths, SDL_Slang_Define* defines, int numDefines)
+/*SDL_SLANG_DECLSPEC SDL_GPUComputePipeline* SDL_SLANG_CALL SDL_Slang_CompileComputeShader(SDL_GPUDevice* device, const char* shader, const char* entryPoint, const char** searchPaths, int numSearchPaths, SDL_Slang_Define* defines, int numDefines)
 {
     return static_cast<SDL_GPUComputePipeline *>(SDL_CreateGPUShader_Slang_Internal(device, SDL_GPU_SHADERSTAGE_VERTEX, true, shader, entryPoint, searchPaths, numSearchPaths, defines, numDefines));
-}
+}*/
