@@ -33,12 +33,14 @@ int main(int argc, const char** argv)
 
     SDL_Slang_Init();
 
-    SDL_GPUComputePipeline* shader = SDL_Slang_CompileComputeShader(device, "assets/shader.slang", "main", nullptr, 0, nullptr, 0);
+    SDL_GPUShader* shader = SDL_Slang_CompileGraphicsShader(device, SDL_GPU_SHADERSTAGE_VERTEX, "assets/shader.slang", "vertexMain", nullptr, 0, nullptr, 0);
     if (!shader)
     {
         printf("Failed to compile shader: %s\n", SDL_GetError());
         return 1;
     }
+
+    SDL_ReleaseGPUShader(device, shader);
 
     SDL_Slang_Quit();
 

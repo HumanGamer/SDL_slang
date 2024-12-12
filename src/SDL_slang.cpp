@@ -26,11 +26,42 @@ static void diagnoseIfNeeded(slang::IBlob* diagnosticsBlob)
         fprintf(stderr, "%s\n", static_cast<const char *>(diagnosticsBlob->getBufferPointer()));
 }
 
-static Slang::ComPtr<slang::IComponentType> compileShader(const std::vector<slang::TargetDesc>& targets, const char* shader, const char* entryPoint, const char** searchPaths, int numSearchPaths, SDL_Slang_Define* defines, int numDefines)
+void* SDL_CreateGPUShader_Slang_Internal(SDL_GPUDevice* device, SDL_GPUShaderStage shaderStage, bool compute, const char* shader, const char* entryPoint, const char** searchPaths, int numSearchPaths, SDL_Slang_Define* defines, int numDefines)
 {
+    SDL_GPUShaderFormat shader_formats = SDL_GetGPUShaderFormats(device);
+
+    std::vector<slang::TargetDesc> targetDescriptions;
+    if (shader_formats & SDL_GPU_SHADERFORMAT_SPIRV)
+    {
+        slang::TargetDesc targetDesc;
+        targetDesc.format = SLANG_SPIRV;
+        targetDesc.profile = globalSession->findProfile("spirv_1_3");
+        targetDescriptions.push_back(targetDesc);
+    } else if (shader_formats & SDL_GPU_SHADERFORMAT_DXBC)
+    {
+        slang::TargetDesc targetDesc;
+        targetDesc.format = SLANG_DXBC;
+        targetDesc.profile = globalSession->findProfile("sm_5_0");
+        targetDescriptions.push_back(targetDesc);
+    } else if (shader_formats & SDL_GPU_SHADERFORMAT_DXIL)
+    {
+        slang::TargetDesc targetDesc;
+        targetDesc.format = SLANG_DXIL;
+        //targetDesc.profile = globalSession->findProfile("sm_5_0");
+        targetDescriptions.push_back(targetDesc);
+    } else if (shader_formats & SDL_GPU_SHADERFORMAT_MSL)
+    {
+        slang::TargetDesc targetDesc;
+        targetDesc.format = SLANG_METAL;
+        //targetDesc.profile = globalSession->findProfile("metal");
+        targetDescriptions.push_back(targetDesc);
+    }
+
+    Slang::ComPtr<slang::IBlob> diagnostics;
+
     slang::SessionDesc sessionDesc{};
-    sessionDesc.targets = targets.data();
-    sessionDesc.targetCount = static_cast<SlangInt>(targets.size());
+    sessionDesc.targets = targetDescriptions.data();
+    sessionDesc.targetCount = static_cast<SlangInt>(targetDescriptions.size());
     sessionDesc.searchPaths = searchPaths;
     sessionDesc.searchPathCount = numSearchPaths;
 
@@ -45,106 +76,64 @@ static Slang::ComPtr<slang::IComponentType> compileShader(const std::vector<slan
     sessionDesc.preprocessorMacroCount = static_cast<SlangInt>(macros.size());
 
     Slang::ComPtr<slang::ISession> session;
-    SlangResult result = globalSession->createSession(sessionDesc, session.writeRef());
-    if (result != SLANG_OK)
-    {
-        int facility = SLANG_GET_RESULT_FACILITY(result);
-        int code = SLANG_GET_RESULT_CODE(result);
-        SDL_SetError("Failed to create session: %x, %x", facility, code);
-        return nullptr;
-    }
+    globalSession->createSession(sessionDesc, session.writeRef());
 
-    Slang::ComPtr<slang::IBlob> diagnostics;
+    //Slang::ComPtr<slang::IBlob> diagnostics;
     slang::IModule* module = session->loadModule(shader, diagnostics.writeRef());
+    /*const char* shaderSource = R"(
+        [shader("compute")]
+        [numthreads(1,1,1)]
+        void computeMain(uint3 tid : SV_DispatchThreadID) {}
+    )";
+    slang::IModule* module = nullptr;
+    module = session->loadModuleFromSourceString("test", "test", shaderSource, diagnostics.writeRef());*/
 
     diagnoseIfNeeded(diagnostics);
-    diagnostics = nullptr;
 
-    if (module == nullptr)
+    if (!module)
     {
         SDL_SetError("Failed to open shader");
         return nullptr;
     }
 
-    for (int i = 0; i < module->getDefinedEntryPointCount(); i++)
+    /*int count = module->getDefinedEntryPointCount();
+
+    for (int i = 0; i < count; i++)
     {
         Slang::ComPtr<slang::IEntryPoint> ep;
         module->getDefinedEntryPoint(i, ep.writeRef());
 
         const char* name = ep->getFunctionReflection()->getName();
         SDL_Log("Name: %s", name);
-    }
+    }*/
 
     Slang::ComPtr<slang::IEntryPoint> entryPointPtr;
-    result = module->findEntryPointByName(entryPoint, entryPointPtr.writeRef());
+    module->findEntryPointByName(entryPoint, entryPointPtr.writeRef());
 
-    if (entryPointPtr == nullptr)
+    if (!entryPointPtr)
     {
-        int facility = SLANG_GET_RESULT_FACILITY(result);
-        int code = SLANG_GET_RESULT_CODE(result);
-
-        //if (result == SLANG_E_INVALID_ARG)
-        //    SDL_SetError("Failed to find entry point: %s", entryPoint);
-        //else
-        SDL_SetError("Failed to find entry point: %x, %x", facility, code);
+        SDL_SetError("Failed to find entry point: %s", entryPoint);
         return nullptr;
     }
 
-    slang::IComponentType* componentTypes[] = { module, entryPointPtr };
+    std::vector<Slang::ComPtr<slang::IComponentType>> componentTypes;
+    componentTypes.emplace_back(module);
+
+    componentTypes.emplace_back(entryPointPtr);
+
+    std::vector<slang::IComponentType*> rawComponentTypes;
+    for (auto& compType : componentTypes)
+        rawComponentTypes.push_back(compType.get());
+
     Slang::ComPtr<slang::IComponentType> program;
-    session->createCompositeComponentType(componentTypes, 2, program.writeRef(), diagnostics.writeRef());
+    session->createCompositeComponentType(rawComponentTypes.data(), rawComponentTypes.size(), program.writeRef(), diagnostics.writeRef());
 
     diagnoseIfNeeded(diagnostics);
-    diagnostics = nullptr;
-
-    /*slang::ProgramLayout* programLayout = program->getLayout(0, diagnostics.writeRef());
-
-    diagnoseIfNeeded(diagnostics);
-    diagnostics = nullptr;*/
 
     Slang::ComPtr<slang::IComponentType> linkedProgram;
     program->link(linkedProgram.writeRef(), diagnostics.writeRef());
 
     diagnoseIfNeeded(diagnostics);
-    diagnostics = nullptr;
-
-    return linkedProgram;
-}
-
-void* SDL_CreateGPUShader_Slang_Internal(SDL_GPUDevice* device, SDL_GPUShaderStage shaderStage, bool compute, const char* shader, const char* entryPoint, const char** searchPaths, int numSearchPaths, SDL_Slang_Define* defines, int numDefines)
-{
-    SDL_GPUShaderFormat shader_formats = SDL_GetGPUShaderFormats(device);
-
-    std::vector<slang::TargetDesc> targetDescriptions;
-    if (shader_formats & SDL_GPU_SHADERFORMAT_SPIRV)
-    {
-        slang::TargetDesc targetDesc;
-        targetDesc.format = SLANG_SPIRV;
-        targetDesc.profile = globalSession->findProfile("glsl_450");
-        targetDescriptions.push_back(targetDesc);
-    } else if (shader_formats & SDL_GPU_SHADERFORMAT_DXBC)
-    {
-        slang::TargetDesc targetDesc;
-        targetDesc.format = SLANG_DXBC;
-        targetDesc.profile = globalSession->findProfile("sm_5_0");
-        targetDescriptions.push_back(targetDesc);
-    } else if (shader_formats & SDL_GPU_SHADERFORMAT_DXIL)
-    {
-        slang::TargetDesc targetDesc;
-        targetDesc.format = SLANG_DXIL;
-        targetDesc.profile = globalSession->findProfile("sm_5_0");
-        targetDescriptions.push_back(targetDesc);
-    } else if (shader_formats & SDL_GPU_SHADERFORMAT_MSL)
-    {
-        slang::TargetDesc targetDesc;
-        targetDesc.format = SLANG_METAL;
-        targetDesc.profile = globalSession->findProfile("metal");
-        targetDescriptions.push_back(targetDesc);
-    }
-
-    Slang::ComPtr<slang::IBlob> diagnostics;
-
-    Slang::ComPtr<slang::IComponentType> linkedProgram = compileShader(targetDescriptions, shader, entryPoint, searchPaths, numSearchPaths, defines, numDefines);
 
     if (linkedProgram == nullptr)
     {
@@ -253,6 +242,8 @@ void* SDL_CreateGPUShader_Slang_Internal(SDL_GPUDevice* device, SDL_GPUShaderSta
         createInfo.num_readwrite_storage_textures = readWriteStorageTextureCount;
         createInfo.num_readwrite_storage_buffers = readWriteStorageBufferCount;
         createInfo.num_uniform_buffers = uniformBufferCount;
+
+        // TODO: How?
         createInfo.threadcount_x = 0;
         createInfo.threadcount_y = 0;
         createInfo.threadcount_z = 0;
